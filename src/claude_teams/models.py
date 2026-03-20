@@ -44,6 +44,7 @@ class TeammateMember(BaseModel):
     backend_type: str = Field(alias="backendType", default="claude")
     opencode_session_id: str | None = Field(alias="opencodeSessionId", default=None)
     is_active: bool = Field(alias="isActive", default=False)
+    agent: str | None = Field(default=None)
 
 
 def _discriminate_member(v: Any) -> str:

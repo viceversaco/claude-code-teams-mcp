@@ -52,7 +52,7 @@ def build_tmux_spawn_args(command: str, name: str) -> list[str]:
             f"@claude-team | {name}",
             command,
         ]
-    return ["tmux", "split-window", "-dP", "-F", "#{pane_id}", command]
+    return ["tmux", "split-window", "-hdP", "-F", "#{pane_id}", command]
 
 
 def discover_opencode_models(opencode_binary: str) -> list[str]:
@@ -102,6 +102,8 @@ def build_spawn_command(
         f"--agent-type {shlex.quote(member.agent_type)} "
         f"--model {shlex.quote(member.model)}"
     )
+    if member.agent:
+        cmd += f" --agent {shlex.quote(member.agent)}"
     if member.plan_mode_required:
         cmd += " --plan-mode-required"
     if skip_permissions():
@@ -139,6 +141,7 @@ def spawn_teammate(
     opencode_binary: str | None = None,
     opencode_server_url: str | None = None,
     opencode_agent: str | None = None,
+    agent: str | None = None,
 ) -> TeammateMember:
     if not _VALID_NAME_RE.match(name):
         raise ValueError(
@@ -192,6 +195,7 @@ def spawn_teammate(
         backend_type=backend_type,
         opencode_session_id=opencode_session_id,
         is_active=False,
+        agent=agent,
     )
 
     member_added = False

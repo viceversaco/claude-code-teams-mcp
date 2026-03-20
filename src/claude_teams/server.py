@@ -72,7 +72,13 @@ def _parse_backends_env(raw: str) -> list[str]:
 _SPAWN_TOOL_BASE_DESCRIPTION = (
     "Spawn a new teammate in a tmux {target}. The teammate receives its initial "
     "prompt via inbox and begins working autonomously. Names must be unique "
-    "within the team. cwd must be an absolute path to the teammate's working directory."
+    "within the team. cwd must be an absolute path to the teammate's working directory. "
+    "After spawning, use check_teammate periodically to monitor progress and "
+    "collect messages. Do not wait idle. "
+    "Instruct teammates in their prompt to stop messaging and read their inbox "
+    "for shutdown requests once their assigned task is complete. "
+    "Pass 'agent' to use a pre-defined Claude Code agent (from .claude/agents/). "
+    "The agent definition provides role context so the prompt only needs the specific task."
 )
 
 
@@ -113,7 +119,9 @@ def _build_spawn_description(
 _CHECK_TEAMMATE_BASE_DESCRIPTION = (
     "Check a single teammate's status: alive/dead, unread messages from them, "
     "their unread count, and optionally terminal output. Always non-blocking. "
-    "Use parallel calls to check multiple teammates."
+    "Use parallel calls to check multiple teammates. "
+    "This is your primary feedback loop as team-lead. Call periodically while "
+    "teammates are working to stay informed and unblock them."
 )
 
 
@@ -377,7 +385,10 @@ def team_create(
 ) -> dict:
     """Create a new agent team. Sets up team config and task directories under ~/.claude/.
     One team per server session. Team names must be filesystem-safe
-    (letters, numbers, hyphens, underscores)."""
+    (letters, numbers, hyphens, underscores).
+    IMPORTANT: This server is pull-based. As team-lead you must actively and
+    periodically call check_teammate and read_inbox to monitor progress and
+    receive messages. Do not wait idle after delegating work."""
     ls = _get_lifespan(ctx)
     if ls.get("active_team"):
         raise ToolError(
@@ -421,6 +432,7 @@ def spawn_teammate_tool(
     subagent_type: str = "general-purpose",
     plan_mode_required: bool = False,
     backend_type: Literal["claude", "opencode"] = "claude",
+    agent: str = "",
 ) -> dict:
     """Spawn a new teammate in tmux. Description is dynamically updated
     at startup with available backends and models."""
@@ -451,6 +463,7 @@ def spawn_teammate_tool(
             opencode_server_url=ls["opencode_server_url"],
             opencode_agent=opencode_agent,
             cwd=cwd,
+            agent=agent or None,
         )
     except (ValueError, OpenCodeAPIError) as e:
         raise ToolError(str(e))
@@ -533,7 +546,7 @@ def send_message(
     Type 'message' sends a direct message (requires recipient, summary).
     Type 'broadcast' sends to all teammates (requires summary).
     Type 'shutdown_request' asks a teammate to shut down (requires recipient; content used as reason).
-    Type 'shutdown_response' responds to a shutdown request (requires sender, request_id, approve).
+    Type 'shutdown_response' is sent BY a teammate (not the lead) to approve/reject a shutdown request (requires sender, request_id, approve).
     Type 'plan_approval_response' responds to a plan approval request (requires recipient, request_id, approve)."""
     oc_url = _get_lifespan(ctx).get("opencode_server_url")
 
@@ -846,9 +859,10 @@ def read_config(team_name: str) -> dict:
 
 @mcp.tool
 def force_kill_teammate(team_name: str, agent_name: str, ctx: Context) -> dict:
-    """Forcibly kill a teammate's tmux target. Use when graceful shutdown via
-    send_message(type='shutdown_request') is not possible or not responding.
-    Kills the tmux pane/window, removes member from config, and resets their tasks."""
+    """Forcibly kill a teammate's tmux target. Use when a teammate does not
+    respond to send_message(type='shutdown_request') within a reasonable time,
+    or when immediate cleanup is needed. Kills the tmux pane/window, removes
+    member from config, and resets their tasks."""
     oc_url = _get_lifespan(ctx).get("opencode_server_url")
     config = teams.read_config(team_name)
     member = None
@@ -869,8 +883,11 @@ def force_kill_teammate(team_name: str, agent_name: str, ctx: Context) -> dict:
 
 @mcp.tool
 def process_shutdown_approved(team_name: str, agent_name: str, ctx: Context) -> dict:
-    """Process a teammate's shutdown by removing them from config and resetting
-    their tasks. Call this after confirming shutdown_approved in the lead inbox."""
+    """Remove a teammate after they approved a shutdown request. This is the
+    final step in graceful shutdown: (1) send_message(type='shutdown_request')
+    to the teammate, (2) wait for 'shutdown_approved' in your inbox via
+    check_teammate or read_inbox, (3) call this tool with the teammate's
+    agent_name. If the teammate does not respond, use force_kill_teammate instead."""
     if agent_name == "team-lead":
         raise ToolError("Cannot process shutdown for team-lead")
     oc_url = _get_lifespan(ctx).get("opencode_server_url")
