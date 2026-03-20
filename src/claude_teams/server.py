@@ -75,8 +75,10 @@ _SPAWN_TOOL_BASE_DESCRIPTION = (
     "within the team. cwd must be an absolute path to the teammate's working directory. "
     "After spawning, use check_teammate periodically to monitor progress and "
     "collect messages. Do not wait idle. "
-    "Instruct teammates in their prompt to stop messaging and read their inbox "
-    "for shutdown requests once their assigned task is complete. "
+    "Instruct teammates in their prompt to: (1) retry reading their inbox if it is "
+    "initially empty, as messages from other teammates may not have arrived yet; "
+    "(2) stop messaging and poll their inbox for shutdown requests once their "
+    "assigned task is complete. "
     "Pass 'agent' to use a pre-defined Claude Code agent (from .claude/agents/). "
     "The agent definition provides role context so the prompt only needs the specific task."
 )
@@ -386,6 +388,7 @@ def team_create(
     """Create a new agent team. Sets up team config and task directories under ~/.claude/.
     One team per server session. Team names must be filesystem-safe
     (letters, numbers, hyphens, underscores).
+    If a previous team exists, force_kill_teammate all members then team_delete it first.
     IMPORTANT: This server is pull-based. As team-lead you must actively and
     periodically call check_teammate and read_inbox to monitor progress and
     receive messages. Do not wait idle after delegating work."""
