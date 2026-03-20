@@ -102,6 +102,8 @@ def build_spawn_command(
         f"--agent-type {shlex.quote(member.agent_type)} "
         f"--model {shlex.quote(member.model)}"
     )
+    if member.effort:
+        cmd += f" --effort {shlex.quote(member.effort)}"
     if member.agent:
         cmd += f" --agent {shlex.quote(member.agent)}"
     if member.plan_mode_required:
@@ -142,6 +144,7 @@ def spawn_teammate(
     opencode_server_url: str | None = None,
     opencode_agent: str | None = None,
     agent: str | None = None,
+    effort: str | None = None,
 ) -> TeammateMember:
     if not _VALID_NAME_RE.match(name):
         raise ValueError(
@@ -196,6 +199,7 @@ def spawn_teammate(
         opencode_session_id=opencode_session_id,
         is_active=False,
         agent=agent,
+        effort=effort,
     )
 
     member_added = False

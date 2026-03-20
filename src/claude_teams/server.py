@@ -80,7 +80,8 @@ _SPAWN_TOOL_BASE_DESCRIPTION = (
     "(2) stop messaging and poll their inbox for shutdown requests once their "
     "assigned task is complete. "
     "Pass 'agent' to use a pre-defined Claude Code agent (from .claude/agents/). "
-    "The agent definition provides role context so the prompt only needs the specific task."
+    "The agent definition provides role context so the prompt only needs the specific task. "
+    "Pass 'effort' (low/medium/high/max) to control reasoning depth (opus and sonnet only, not haiku)."
 )
 
 
@@ -436,6 +437,7 @@ def spawn_teammate_tool(
     plan_mode_required: bool = False,
     backend_type: Literal["claude", "opencode"] = "claude",
     agent: str = "",
+    effort: str = "",
 ) -> dict:
     """Spawn a new teammate in tmux. Description is dynamically updated
     at startup with available backends and models."""
@@ -443,6 +445,10 @@ def spawn_teammate_tool(
 
     if not cwd or not os.path.isabs(cwd):
         raise ToolError("cwd is required and must be an absolute path.")
+    if effort and effort not in ("low", "medium", "high", "max"):
+        raise ToolError(f"Invalid effort level: {effort!r}. Must be low, medium, high, or max.")
+    if effort and model == "haiku":
+        raise ToolError("Effort level is not supported for haiku model.")
     ls = _get_lifespan(ctx)
     enabled = ls.get("enabled_backends", [])
     if enabled and backend_type not in enabled:
@@ -467,6 +473,7 @@ def spawn_teammate_tool(
             opencode_agent=opencode_agent,
             cwd=cwd,
             agent=agent or None,
+            effort=effort or None,
         )
     except (ValueError, OpenCodeAPIError) as e:
         raise ToolError(str(e))
