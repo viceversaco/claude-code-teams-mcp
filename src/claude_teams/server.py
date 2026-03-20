@@ -102,7 +102,7 @@ def _build_spawn_description(
         show_claude = show_claude and "claude" in enabled_backends
         show_opencode = show_opencode and "opencode" in enabled_backends
     if show_claude:
-        backends.append("'claude' (default, models: sonnet, opus, haiku)")
+        backends.append("'claude' (default, models: sonnet, opus, haiku, sonnet[1m], opus[1m] for 1M context)")
     if show_opencode:
         model_list = (
             ", ".join(opencode_models) if opencode_models else "none discovered"
